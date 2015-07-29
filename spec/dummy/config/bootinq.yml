@@ -1,0 +1,11 @@
+:env_key: "BOOTINQ"
+:default_flags: "-f"
+:components:
+  s:
+    - :shared
+  a:
+    - :api
+    - :mountable: true
+  f:
+    - :frontend
+    - :mountable: true

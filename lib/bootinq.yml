@@ -1,0 +1,11 @@
+:env_key:       BOOTINQ
+:default_flags: abc
+:components:
+  # a:
+  #   - :admin
+  #   - :mountable: true
+  # b:
+  #   - :backend
+  #   - :mountable: true
+  # c:
+  #   - :common

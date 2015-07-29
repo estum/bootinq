@@ -1,0 +1,8 @@
+default: "-f"
+
+parts:
+  s: :shared
+
+mount:
+  a: :api
+  f: :engine

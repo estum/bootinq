@@ -20,6 +20,13 @@ describe Bootinq do
     it 'Registers all components from bootinq.yml' do
       expect(Bootinq.components.size).to eq(2)
     end
+  end
+
+  describe ".require" do
+    it 'Requires given rails parts' do
+      expect( defined? ActionMailer ).to be_truthy
+      expect( defined? Sprockets ).to be_falsey
+    end
 
     it 'Requires given components' do
       expect( defined? Shared ).to be_truthy

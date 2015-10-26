@@ -81,17 +81,32 @@ class Bootinq
   end
 
   # Invokes <tt>Rails.groups</tt> method within enabled Bootinq's groups
-  def groups(*groups)
-    Rails.groups(*components.map(&:group), *groups)
+  def groups(*list)
+    Rails.groups(*components.map(&:group), *list)
+  end
+
+  # Yields the given block if any of given components is enabled.
+  #
+  # ==== Example:
+  #
+  #   Bootinq.on :frontend do
+  #     # make frontend thing...
+  #   end
+  def on(*names) # :yields:
+    if names.any? { |name| enabled?(name) }
+      yield
+    end
   end
 
   def_delegators "instance", *instance_methods(false)
 
   class << self
-    # The helper method to bootstrap the Bootinq. Sets the BOOTINQ_PATH enviroment variable
-    # and requires selected bundler groups.
-    def require(*groups)
+    # The helper method to bootstrap the Bootinq.
+    # Sets the BOOTINQ_PATH enviroment variable, yields optional block in
+    # the own instance's binding and, finally, requires selected bundler groups.
+    def require(*groups, &block) # :yields:
       ENV['BOOTINQ_PATH'] ||= File.expand_path('../bootinq.yml', caller_locations(1..1)[0].path)
+      instance.instance_exec(&block) if block_given?
       Bundler.require(*instance.groups(*groups))
     end
 

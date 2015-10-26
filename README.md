@@ -64,6 +64,8 @@ end
 
 Insert `require "bootinq"` to the top of `config/application.rb` file and replace `Bundler.require(*Rails.groups)` with the `Bootinq.require`:
 
+#### Simple
+
 ```ruby
 # config/application.rb
 
@@ -79,6 +81,30 @@ Bootinq.require
 puts "* Bootinq: loading components #{Bootinq.components * ', '}"
 ```
 
+#### Separate load rails components with Bootinq
+
+```ruby
+# config/application.rb
+require File.expand_path('../boot', __FILE__)
+
+require "rails"
+# Pick the frameworks you want:
+require "active_model/railtie"
+require "active_record/railtie"
+require "active_job/railtie"
+require "action_mailer/railtie"
+require "rails/test_unit/railtie"
+
+Bootinq.require do
+  # Load the following components only when the frontend component is enabled
+  on :frontend do
+    require "sprockets/railtie"
+    require "action_controller/railtie"
+    require "action_view/railtie"
+  end
+end
+```
+
 ### 4. Mount enabled engines in config/routes.rb
 
 Use the `Bootinq.each_mountable {}` helper to easily mount currently loaded engines or do it by yourself checking `Bootinq.enabled?(engine_name)` :
@@ -89,7 +115,7 @@ Rails.application.routes.draw do
   Bootinq.each_mountable do |part|
     mount part.engine => '/', as: part.to_sym
   end
-  
+
   root 'frontend/pages#index' if Bootinq.enabled?(:frontend)
 end
 ```

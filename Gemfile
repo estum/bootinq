@@ -18,6 +18,7 @@ gem 'byebug', group: [:development, :test]
 
 group :development, :test do
   # You need these
+  gem "rspec"
   gem "rspec-rails"
   gem "pry"
 end

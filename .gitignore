@@ -14,3 +14,4 @@
 /spec/dummy/tmp/
 /spec/dummy/.sass-cache
 .rake_t_cache
+.ruby-version

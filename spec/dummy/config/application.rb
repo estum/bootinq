@@ -7,6 +7,7 @@ require "action_view/railtie"
 # require "rails/test_unit/railtie"
 
 require "bootinq"
+
 Bootinq.require do
   on :shared do
     require "action_mailer/railtie"

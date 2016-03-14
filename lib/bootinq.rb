@@ -27,7 +27,6 @@ class Bootinq
   extend SingleForwardable
   include Singleton
 
-  NEG_OPS = %w(- ^).freeze
   DEFAULT = {
     "env_key" => 'BOOTINQ',
     "default" => '',
@@ -38,10 +37,10 @@ class Bootinq
   # The helper method to bootstrap the Bootinq.
   # Sets the BOOTINQ_PATH enviroment variable, yields optional block in
   # the own instance's binding and, finally, requires selected bundler groups.
-  def self.require(*groups, logger: nil, &block) # :yields:
+  def self.require(*groups, verbose: false, &block) # :yields:
     ENV['BOOTINQ_PATH'] ||= File.expand_path('../bootinq.yml', caller_locations(1..1)[0].path)
 
-    logger.debug { "Bootinq: loading components #{instance.components.join(', ')}" } if logger.respond_to?(:debug)
+    puts "Bootinq: loading components #{instance.components.join(', ')}" if verbose
 
     instance.instance_exec(&block) if block_given?
 
@@ -60,7 +59,7 @@ class Bootinq
       merge!(DEFAULT) { |_,l,r| l.nil? ? r : l }
 
     @_value     = ENV.fetch(config['env_key']) { config['default'] }
-    @_neg       = @_value.start_with?(*NEG_OPS)
+    @_neg       = @_value.start_with?("-", "^")
     @flags      = []
     @components = []
 
@@ -81,7 +80,7 @@ class Bootinq
   alias :[] :component
 
   # Enums each mountable component
-  def each_mountable
+  def each_mountable # :yields:
     return to_enum(__method__) unless block_given?
     components.each { |part| yield(part) if part.mountable? }
   end
@@ -109,15 +108,17 @@ class Bootinq
   #   Bootinq.on all: %i(frontend backend) do
   #     # do something when frontend and backend are enabled
   #   end
-  def on(name) # :yields:
-    if name.is_a?(Hash)
-      %i(any all).each do |m|
-        list = name[m]
-        next unless list.is_a?(Enumerable)
-        yield if list.public_send(:"#{m}?") { |part| enabled?(part) }
-      end
-    else
+  def on(name = nil, any: nil, all: nil) # :yields:
+    if (any && all) || (name && (any || all))
+      raise ArgumentError, "expected single argument or one of keywords: `all' or `any'"
+    elsif name
       yield if enabled?(name)
+    elsif any
+      yield if any.any? { |part| enabled?(part) }
+    elsif all
+      yield if all.all? { |part| enabled?(part) }
+    else
+      raise ArgumentError, "wrong arguments (given 0, expected 1)"
     end
   end
 

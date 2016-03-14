@@ -1,6 +1,6 @@
 class Bootinq
   class Component
-    attr_reader :intern, :id2name
+    attr_reader :intern, :id2name, :group
 
     alias :to_sym   :intern
     alias :to_s     :id2name
@@ -10,15 +10,12 @@ class Bootinq
     def initialize(intern)
       @intern  = intern.to_sym
       @id2name = intern.to_s.freeze
+      @group   = :"#@id2name\_boot"
       freeze
     end
 
     def mountable?
       false
-    end
-
-    def group
-      :"#@id2name\_boot"
     end
 
     def == other
@@ -34,7 +31,6 @@ class Bootinq
     end
 
     def engine
-      nil
     end
 
     def module_name

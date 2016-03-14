@@ -13,7 +13,7 @@ RSpec.describe Bootinq do
     end
 
     it 'takes default flags from bootinq.yml' do
-      expect(Bootinq.flags).to eq(["s", "a"])
+      expect(Bootinq.flags).to eq(%w(s a))
     end
 
     it 'registers all components from bootinq.yml' do
@@ -94,6 +94,14 @@ RSpec.describe Bootinq do
         expect {|b| Bootinq.on(all: [:shared, 'api'], &b) }.to yield_with_no_args
         expect {|b| Bootinq.on(all: [:shared, :engine], &b) }.not_to yield_control
       end
+    end
+
+    context 'no arguments' do
+      it { expect {|b| Bootinq.on(&b) }.to raise_error(ArgumentError, "wrong arguments (given 0, expected 1)") }
+    end
+
+    context 'wrong arguments' do
+      it { expect {|b| Bootinq.on(any: [:shared], all: ['api'], &b) }.to raise_error(ArgumentError) }
     end
   end
 end

@@ -10,7 +10,7 @@ gemspec
 # Git. Remember to move these dependencies to your gemspec before releasing
 # your gem to rubygems.org.
 
-gem 'rails', '~> 4.2'
+gem 'rails', '>= 5.0'
 gem 'sqlite3'
 
 # To use a debugger

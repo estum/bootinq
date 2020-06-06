@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "yaml"
 require "singleton"
 require "forwardable"
@@ -35,61 +37,100 @@ class Bootinq
   }.freeze
 
   # The helper method to bootstrap the Bootinq.
-  # Sets the BOOTINQ_PATH enviroment variable, yields optional block in
-  # the own instance's binding and, finally, requires selected bundler groups.
-  def self.require(*groups, verbose: false, &block) # :yields:
+  # Sets the BOOTINQ_PATH enviroment variable, invokes <tt>Bootinq.setup</tt> method
+  # with given verbose argument & block, and, finally, gets Bundler to require the given groups.
+  def self.require(*groups, verbose: false, &block) # :yields: Bootinq.instance
     ENV['BOOTINQ_PATH'] ||= File.expand_path('../bootinq.yml', caller_locations(1..1)[0].path)
 
-    puts "Bootinq: loading components #{instance.components.join(', ')}" if verbose
-
-    instance.instance_exec(&block) if block_given?
+    setup(verbose: verbose, &block)
 
     Bundler.require(*instance.groups(*groups))
   end
 
-  private_class_method def self.new # :nodoc:
-    super.freeze
+  # :call-seq:
+  #   Bootinq.setup(verbose: true, &block) -> true or false
+  #
+  # Initializes itself. When verbose: true
+  # Yields optional block in the own instance's binding and,
+  def self.setup(verbose: false, &block) # :yields: Bootinq.instance
+    instance
+    puts "Bootinq: loading components #{instance.components.join(', ')}" if verbose
+    instance.instance_exec(&block) if block_given?
+    instance
   end
-
 
   attr_reader :flags, :components
 
-  def initialize
-    config = YAML.safe_load(File.read(ENV.fetch('BOOTINQ_PATH')), [Symbol]).
-      merge!(DEFAULT) { |_,l,r| l.nil? ? r : l }
+  def initialize # :no-doc:
+    config_path = ENV.fetch('BOOTINQ_PATH')
+    config = YAML.safe_load(File.read(config_path), [Symbol])
+    config.merge!(DEFAULT) { |_, l, r| l.nil? ? r : l }
 
     @_value     = ENV.fetch(config['env_key']) { config['default'] }
-    @_neg       = @_value.start_with?("-", "^")
+    @_neg       = @_value.start_with?(?-, ?^)
     @flags      = []
     @components = []
 
-    config['parts'].each { |flag, name| enable_component(flag) { Component.new(name) } }
-    config['mount'].each { |flag, name| enable_component(flag) { Mountable.new(name) } }
+    config['parts'].each { |flag, name| enable_component(name, flag: flag) }
+    config['mount'].each { |flag, name| enable_component(name, flag: flag, as: Mountable) }
   end
 
-  # Checks if a given gem (i.e. a gem group) is enabled
-  def enabled?(gem_name)
-    components.include?(gem_name)
+  # :call-seq:
+  #   Bootinq.enable_component(name, flag: [, as: Component])
+  #
+  def enable_component(name, flag:, as: Component)
+    if @_neg ^ @_value.include?(flag)
+      @flags      << flag
+      @components << as.new(name)
+    end
   end
 
+  # :call-seq:
+  #   Bootinq.enabled?(name) -> true or false
+  #
+  # Checks if a component with the given name (i.e. the same gem group)
+  # is enabled
+  def enabled?(name)
+    components.include?(name)
+  end
+
+  # :call-seq:
+  #   Bootinq.component(name) -> Bootinq::Component
+  #   Bootinq[name] -> Bootinq::Component
+  #
   # Returns a <tt>Bootinq::Component</tt> object by its name
-  def component(key)
-    components[components.index(key)]
+  def component(name)
+    components[components.index(name)]
   end
 
   alias :[] :component
 
-  # Enums each mountable component
-  def each_mountable # :yields:
-    return to_enum(__method__) unless block_given?
-    components.each { |part| yield(part) if part.mountable? }
+
+  # :call-seq:
+  #   Bootinq.each_mountable { |part| block } -> Array
+  #   Bootinq.each_mountable -> Enumerator
+  #
+  # Calls the given block once for each enabled mountable component
+  # passing that part as a parameter. Returns the array of all mountable components.
+  #
+  # If no block is given, an Enumerator is returned.
+  def each_mountable(&block) # :yields: part
+    components.select(&:mountable?).each(&block)
   end
 
+  # :call-seq:
+  #   Bootinq.groups(*groups)
+  #
   # Invokes <tt>Rails.groups</tt> method within enabled Bootinq's groups
-  def groups(*list)
-    Rails.groups(*components.map(&:group), *list)
+  def groups(*groups)
+    Rails.groups(*components.map(&:group), *groups)
   end
 
+  # :call-seq:
+  #   Bootinq.on(name) { block } -> true or false
+  #   Bootinq.on(any: [names]) { block } -> true or false
+  #   Bootinq.on(all: [names]) { block } -> true or false
+  #
   # Takes a component's name or single-key options hash as an argument and
   # yields a given block if the target components are enabled.
   #
@@ -109,20 +150,44 @@ class Bootinq
   #     # do something when frontend and backend are enabled
   #   end
   def on(name = nil, any: nil, all: nil) # :yields:
-    if (any && all) || (name && (any || all))
-      raise ArgumentError, "expected single argument or one of keywords: `all' or `any'"
-    elsif name
-      yield if enabled?(name)
-    elsif any
-      yield if any.any? { |part| enabled?(part) }
-    elsif all
-      yield if all.all? { |part| enabled?(part) }
-    else
+    if name.nil? && any.nil? && all.nil?
       raise ArgumentError, "wrong arguments (given 0, expected 1)"
+    elsif (any && all) || (name && (any || all))
+      raise ArgumentError, "expected single argument or one of keywords: `all' or `any'"
     end
+
+    is_matched =
+      name ? enabled?(name) :
+      any  ? on_any(*any) :
+      all  ? on_all(*all) : false
+    yield if is_matched
+    is_matched
   end
 
-  def freeze # :no-doc:
+  # :call-seq:
+  #   Bootinq.on_all(*names) { block } -> true or false
+  #
+  # Takes a list of component names and yields a given block (optionally)
+  # if all of them are enabled. Returns boolean matching status.
+  def on_all(*parts) # :yields:
+    is_matched = parts.all? { |p| enabled?(p) }
+    yield if is_matched && block_given?
+    is_matched
+  end
+
+  # :call-seq:
+  #   Bootinq.on_all(*names) { block } -> true or false
+  #
+  # Takes a list of component names and yields a given block  (optionally)
+  # if any of them are enabled. Returns boolean matching status.
+  def on_any(*parts) # :yields:
+    is_matched = parts.any? { |p| enabled?(p) }
+    yield if is_matched && block_given?
+    is_matched
+  end
+
+  # Freezes every instance variables and the instance itself.
+  def freeze
     @_value.freeze
     @_neg.freeze
     @flags.freeze
@@ -132,10 +197,9 @@ class Bootinq
 
   def_delegators "instance", *instance_methods(false)
 
-  private def enable_component(flag) # :yields:
-    if @_neg ^ @_value.include?(flag)
-      @flags      << flag
-      @components << yield
-    end
+  def self.new # :no-doc:
+    super.freeze
   end
+
+  private_class_method :new
 end

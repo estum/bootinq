@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class Bootinq
   class Component
     attr_reader :intern, :id2name, :group

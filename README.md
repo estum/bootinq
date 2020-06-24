@@ -15,9 +15,9 @@ And then execute:
     $ bundle
 
 
-## Usage
+## Get started
 
-There are few steps to setup partial gem booting in a Rails application using Bootinq:
+There are few steps to setup partial gem booting using Bootinq in any ruby application:
 
 ### 1. Declare loadable parts
 
@@ -60,7 +60,9 @@ group :console_boot do
 end
 ```
 
-### 3. Change config/application.rb
+## Ruby on Rails
+
+### 3. Swap Bundle.require to Bootinq.require
 
 Insert `require "bootinq"` to the top of `config/application.rb` file and replace `Bundler.require(*Rails.groups)` with the `Bootinq.require`:
 
@@ -74,11 +76,10 @@ require 'rails/all'
 require 'bootinq'
 
 # With no additional gem groups:
-Bootinq.require
+Bootinq.require(verbose: true)
 # otherwise, set them like in <tt>Bundle.require(*Rails.groups(*groups))</tt>:
 # Bootinq.require(:assets => %w(development test))
 
-puts "* Bootinq: loading components #{Bootinq.components * ', '}"
 ```
 
 #### Separate load rails components with Bootinq
@@ -130,6 +131,24 @@ For example, with the [foreman](https://github.com/ddollar/foreman) in `Procfile
 api:   env BOOTINQ=a MAX_THREADS=128 bundle exec puma -w 4
 admin: env BOOTINQ=z bundle exec puma
 ```
+
+## Usage with other frameworks
+
+3. Locate `Bundler.require(...)` in your app and insert `require "bootinq"` above it.
+
+4. Replace located `Bundler.require(...)` line with the `Bootinq.require(...)`.
+
+For example, if you are using Grape:
+
+```ruby
+# config/application.rb
+
+require 'boot'
+require 'bootinq'
+
+# Bundler.require :default, ENV['RACK_ENV']
+Bootinq.require :default, ENV['RACK_ENV'], verbose: true
+
 
 ## Development
 

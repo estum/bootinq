@@ -9,10 +9,29 @@ require "bootinq/component"
 #
 # == Installation
 #
+# === Ruby on Rails
+#
 # 1. Insert <tt>require "bootinq"</tt> in the top of <tt>config/application.rb</tt>
 #
 # 2. Find <tt>Bundler.require(*Rails.groups)</tt> line below and replace it
 #    with the <tt>Bootinq.require</tt>.
+#
+# === Other
+#
+# 1. Locate <tt>Bundler.require(...)</tt> in your app and insert <tt>require "bootinq"</tt> above.
+#
+# 2. Replace located <tt>Bundler.require(...)</tt> line with the <tt>Bootinq.require(...)</tt>.
+#
+# For example, if you are using Grape:
+#
+#     # config/application.rb
+#
+#     require 'boot'
+#     require 'bootinq'
+#
+#     # Bundler.require :default, ENV['RACK_ENV']
+#     Bootinq.require :default, ENV['RACK_ENV'], verbose: true
+#     ...
 #
 # == Example <tt>config/bootinq.yml</tt>:
 #
@@ -26,7 +45,6 @@ require "bootinq/component"
 #       a: :api
 #       f: :engine
 class Bootinq
-  extend SingleForwardable
   include Singleton
 
   DEFAULT = {
@@ -36,9 +54,22 @@ class Bootinq
     "mount"   => {}
   }.freeze
 
+  class << self
+    protected def delegated(sym) # :no-doc:
+      location = caller_locations(1, 1).first
+      file, line = location.path, location.lineno
+      definiton = %(def self.#{sym}(*args, &block); instance.#{sym}(*args, &block); end)
+      class_eval definiton, file, line
+    end
+  end
+
+  # :call-seq:
+  #   Bootinq.require(*groups, verbose: false, &block)
+  #
   # The helper method to bootstrap the Bootinq.
-  # Sets the BOOTINQ_PATH enviroment variable, invokes <tt>Bootinq.setup</tt> method
-  # with given verbose argument & block, and, finally, gets Bundler to require the given groups.
+  # Sets the BOOTINQ_PATH enviroment variable if it is missing,
+  # invokes the <tt>Bootinq.setup</tt> method with the given verbose key argument & block,
+  # and, finally, gets Bundler to require the given groups.
   def self.require(*groups, verbose: false, &block) # :yields: Bootinq.instance
     ENV['BOOTINQ_PATH'] ||= File.expand_path('../bootinq.yml', caller_locations(1..1)[0].path)
 
@@ -48,10 +79,10 @@ class Bootinq
   end
 
   # :call-seq:
-  #   Bootinq.setup(verbose: true, &block) -> true or false
+  #   Bootinq.setup(verbose: false, &block) -> true or false
   #
-  # Initializes itself. When verbose: true
-  # Yields optional block in the own instance's binding and,
+  # Initializes itself. To track inquired components use <tt>verbose: true</tt> key argument.
+  # Optionally yields block within the own instance's binding.
   def self.setup(verbose: false, &block) # :yields: Bootinq.instance
     instance
     puts "Bootinq: loading components #{instance.components.join(', ')}" if verbose
@@ -59,7 +90,11 @@ class Bootinq
     instance
   end
 
-  attr_reader :flags, :components
+  attr_reader :flags
+  attr_reader :components
+
+  delegated :flags
+  delegated :components
 
   def initialize # :no-doc:
     config_path = ENV.fetch('BOOTINQ_PATH')
@@ -78,7 +113,7 @@ class Bootinq
   # :call-seq:
   #   Bootinq.enable_component(name, flag: [, as: Component])
   #
-  def enable_component(name, flag:, as: Component)
+  delegated def enable_component(name, flag:, as: Component)
     if @_neg ^ @_value.include?(flag)
       @flags      << flag
       @components << as.new(name)
@@ -90,7 +125,7 @@ class Bootinq
   #
   # Checks if a component with the given name (i.e. the same gem group)
   # is enabled
-  def enabled?(name)
+  delegated def enabled?(name)
     components.include?(name)
   end
 
@@ -99,12 +134,12 @@ class Bootinq
   #   Bootinq[name] -> Bootinq::Component
   #
   # Returns a <tt>Bootinq::Component</tt> object by its name
-  def component(name)
+  delegated def component(name)
     components[components.index(name)]
   end
 
   alias :[] :component
-
+  delegated :[]
 
   # :call-seq:
   #   Bootinq.each_mountable { |part| block } -> Array
@@ -114,16 +149,23 @@ class Bootinq
   # passing that part as a parameter. Returns the array of all mountable components.
   #
   # If no block is given, an Enumerator is returned.
-  def each_mountable(&block) # :yields: part
+  delegated def each_mountable(&block) # :yields: part
     components.select(&:mountable?).each(&block)
   end
 
   # :call-seq:
   #   Bootinq.groups(*groups)
   #
-  # Invokes <tt>Rails.groups</tt> method within enabled Bootinq's groups
-  def groups(*groups)
-    Rails.groups(*components.map(&:group), *groups)
+  # Merges enabled Bootinq's groups with the given groups and, if loaded with Rails,
+  # passes them to <tt>Rails.groups</tt> method, otherwise just returns the merged list
+  # to use with <tt>Bundler.require</tt>.
+  delegated def groups(*groups)
+    groups.unshift(*components.map(&:group))
+    if defined?(Rails)
+      Rails.groups(*groups)
+    else
+      groups
+    end
   end
 
   # :call-seq:
@@ -149,7 +191,7 @@ class Bootinq
   #   Bootinq.on all: %i(frontend backend) do
   #     # do something when frontend and backend are enabled
   #   end
-  def on(name = nil, any: nil, all: nil) # :yields:
+  delegated def on(name = nil, any: nil, all: nil) # :yields:
     if name.nil? && any.nil? && all.nil?
       raise ArgumentError, "wrong arguments (given 0, expected 1)"
     elsif (any && all) || (name && (any || all))
@@ -169,7 +211,7 @@ class Bootinq
   #
   # Takes a list of component names and yields a given block (optionally)
   # if all of them are enabled. Returns boolean matching status.
-  def on_all(*parts) # :yields:
+  delegated def on_all(*parts) # :yields:
     is_matched = parts.all? { |p| enabled?(p) }
     yield if is_matched && block_given?
     is_matched
@@ -180,7 +222,7 @@ class Bootinq
   #
   # Takes a list of component names and yields a given block  (optionally)
   # if any of them are enabled. Returns boolean matching status.
-  def on_any(*parts) # :yields:
+  delegated def on_any(*parts) # :yields:
     is_matched = parts.any? { |p| enabled?(p) }
     yield if is_matched && block_given?
     is_matched
@@ -195,9 +237,7 @@ class Bootinq
     super
   end
 
-  def_delegators "instance", *instance_methods(false)
-
-  def self.new # :no-doc:
+  def self.new
     super.freeze
   end
 

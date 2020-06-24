@@ -20,6 +20,17 @@ class Bootinq
       false
     end
 
+    def module_name
+      @id2name.camelcase.to_sym
+    end
+
+    def engine
+    end
+
+    def kind_of?(klass)
+      super || @intern.kind_of?(klass)
+    end
+
     def == other
       case other
       when String then other == @id2name
@@ -28,26 +39,44 @@ class Bootinq
       end
     end
 
-    def inspect
-      @intern.inspect
+    def ===(other)
+      case other
+      when String then other === @id2name
+      when Symbol then other === @intern
+                  else super
+      end
     end
 
-    def engine
+    def casecmp(other)
+      case other
+      when String then @id2name.casecmp(other)
+      when Symbol then @intern.casecmp(other)
+      when self.class then casecmp(other.to_s)
+      end
     end
 
-    def module_name
-      @id2name.camelcase.to_sym
+    def casecmp?(other)
+      case other
+      when String then @id2name.casecmp?(other)
+      when Symbol then @intern.casecmp?(other)
+      when self.class then casecmp?(other.to_s)
+      end
     end
 
-    def respond_to_missing?(method_name, include_all=false)
-      @intern.respond_to?(method_name, include_all)
-    end
+    %i(inspect to_proc __id__ hash).
+      each { |sym| class_eval %(def #{sym}; @intern.#{sym}; end), __FILE__, __LINE__ + 1 }
 
-    private
+    %i(encoding empty? length).
+      each { |sym| class_eval %(def #{sym}; @id2name.#{sym}; end), __FILE__, __LINE__ + 1 }
 
-    def method_missing(method_name, *args, &blk)
-      @intern.respond_to?(method_name) ? @intern.public_send(method_name, *args, &blk) : super
-    end
+    %i(match match? =~ []).
+      each { |sym| class_eval %(def #{sym}(*args); @id2name.#{sym}(*args); end), __FILE__, __LINE__ + 1 }
+
+    %i(upcase downcase capitalize swapcase succ next).
+      each { |sym| class_eval %(def #{sym}; self.class.new(@intern.#{sym}); end), __FILE__, __LINE__ + 1 }
+
+    alias :slice :[]
+    alias :size :length
   end
 
   class Mountable < Component

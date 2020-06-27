@@ -107,7 +107,7 @@ RSpec.describe Bootinq do
 
   describe "#switch" do
     it 'yields control' do
-      expect { |b| Bootinq.switch(&b) }.to yield_with_args(Bootinq::Switch)
+      expect { |b| Bootinq.switch { |o| o.shared(&b) } }.to yield_control
     end
   end
 end

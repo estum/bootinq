@@ -106,7 +106,6 @@ class Bootinq
     @_neg       = @_value.start_with?(?-, ?^)
     @flags      = []
     @components = []
-    @switch     = Switch.new(*@components)
 
     config['parts'].each { |flag, name| enable_component(name, flag: flag) }
     config['mount'].each { |flag, name| enable_component(name, flag: flag, as: Mountable) }
@@ -242,7 +241,7 @@ class Bootinq
   #     part.backend { … }
   #   end
   delegated def switch # :yields: Bootinq::Switch.new
-    yield(@switch)
+    yield(Switch.new)
     nil
   end
 

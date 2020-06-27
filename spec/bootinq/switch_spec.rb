@@ -1,8 +1,7 @@
 require 'spec_helper'
 
 RSpec.describe Bootinq::Switch do
-  let(:names)  { [:shared, :api] }
-  let(:switch) { described_class.new(*names) }
+  let(:switch) { described_class.new }
 
   it "yields a block only if component is enabled" do
     expect {|b| switch.shared(&b) }.to yield_with_no_args

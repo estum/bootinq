@@ -4,6 +4,7 @@ require "yaml"
 require "singleton"
 require "forwardable"
 require "bootinq/component"
+require "bootinq/switch"
 
 # = Bootinq
 #
@@ -105,6 +106,7 @@ class Bootinq
     @_neg       = @_value.start_with?(?-, ?^)
     @flags      = []
     @components = []
+    @switch     = Switch.new(*@components)
 
     config['parts'].each { |flag, name| enable_component(name, flag: flag) }
     config['mount'].each { |flag, name| enable_component(name, flag: flag, as: Mountable) }
@@ -226,6 +228,22 @@ class Bootinq
     is_matched = parts.any? { |p| enabled?(p) }
     yield if is_matched && block_given?
     is_matched
+  end
+
+  # :call-seq:
+  #   Bottinq.switch(*parts) { block } -> nil
+  #
+  # Collector method.
+  #
+  # Example:
+  #
+  #   Bootinq.switch do |part|
+  #     part.frontend { … }
+  #     part.backend { … }
+  #   end
+  delegated def switch # :yields: Bootinq::Switch.new
+    yield(@switch)
+    nil
   end
 
   # Freezes every instance variables and the instance itself.

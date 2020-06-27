@@ -104,4 +104,10 @@ RSpec.describe Bootinq do
       it { expect {|b| Bootinq.on(any: [:shared], all: ['api'], &b) }.to raise_error(ArgumentError) }
     end
   end
+
+  describe "#switch" do
+    it 'yields control' do
+      expect { |b| Bootinq.switch(&b) }.to yield_with_args(Bootinq::Switch)
+    end
+  end
 end

@@ -67,28 +67,36 @@ class Bootinq
   # :call-seq:
   #   Bootinq.require(*groups, verbose: false, &block)
   #
-  # The helper method to bootstrap the Bootinq.
-  # Sets the BOOTINQ_PATH enviroment variable if it is missing,
-  # invokes the <tt>Bootinq.setup</tt> method with the given verbose key argument & block,
-  # and, finally, gets Bundler to require the given groups.
+  # Invokes the <tt>Bootinq.init</tt> method with the given verbose key argument & block,
+  # and, finally, makes Bundler to require the given groups.
   def self.require(*groups, verbose: false, &block) # :yields: Bootinq.instance
-    ENV['BOOTINQ_PATH'] ||= File.expand_path('../bootinq.yml', caller_locations(1..1)[0].path)
-
-    setup(verbose: verbose, &block)
-
+    init(verbose: verbose, &block)
     Bundler.require(*instance.groups(*groups))
   end
 
   # :call-seq:
-  #   Bootinq.setup(verbose: false, &block) -> true or false
+  #   Bootinq.setup(*groups, verbose: false, &block)
   #
-  # Initializes itself. To track inquired components use <tt>verbose: true</tt> key argument.
+  # Invokes the <tt>Bootinq.init</tt> method with the given verbose key argument & block,
+  # and, finally, makes Bundler to setup the given groups.
+  def self.setup(*groups, verbose: false, &block) # :yields: Bootinq.instance
+    init(verbose: verbose, &block)
+    Bundler.setup(*instance.groups(*groups))
+  end
+
+  # :call-seq:
+  #   Bootinq.init(verbose: false, &block) -> true or false
+  #
+  # Initializes itself. Sets the BOOTINQ_PATH enviroment variable if it is missing.
+  # To track inquired components use <tt>verbose: true</tt> key argument.
   # Optionally yields block within the own instance's binding.
-  def self.setup(verbose: false, &block) # :yields: Bootinq.instance
+  def self.init(verbose: false, &block) # :yields: Bootinq.instance
+    ENV['BOOTINQ_PATH'] ||= File.expand_path('../bootinq.yml', caller_locations(2, 1)[0].path)
+
     instance
+    instance.instance_variable_set(:@_on_ready, block.to_proc) if block_given?
     puts "Bootinq: loading components #{instance.components.join(', ')}" if verbose
-    instance.instance_exec(&block) if block_given?
-    instance
+    instance.ready!
   end
 
   attr_reader :flags
@@ -109,6 +117,25 @@ class Bootinq
 
     config['parts'].each { |flag, name| enable_component(name, flag: flag) }
     config['mount'].each { |flag, name| enable_component(name, flag: flag, as: Mountable) }
+  end
+
+  delegated def ready? # :no-doc:
+    !!@ready
+  end
+
+  # :call-seq:
+  #   Bootinq.ready! -> nil or self
+  #
+  # At the first call marks Bootinq as ready and returns the instance,
+  # otherwise returns nil.
+  delegated def ready!
+    return if ready?
+    @ready = true
+    if defined?(@_on_ready)
+      instance_exec(&@_on_ready)
+      remove_instance_variable :@_on_ready
+    end
+    self
   end
 
   # :call-seq:

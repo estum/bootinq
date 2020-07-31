@@ -31,9 +31,9 @@ RSpec.describe Bootinq do
   end
 
   describe Bootinq::Mountable do
-    let!(:name)      { :api }
+    let!(:name)      { :api2 }
     let!(:mountable) { true }
-    let!(:engine)    { Api::Engine }
+    let!(:engine)    { Api2::Engine }
     it_behaves_like 'component'
   end
 end

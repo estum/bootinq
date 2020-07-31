@@ -4,8 +4,8 @@ RSpec.describe Bootinq do
   end
 
   let(:shared_attrs) {{ name: "shared", group: :shared_boot }}
-  let(:api_attrs)    {{ name: "api",    group: :api_boot,  engine: Api::Engine }}
-  let(:added_groups) { [:shared_boot, :api_boot] }
+  let(:api_attrs)    {{ name: "api2",   group: :api2_boot,  engine: Api2::Engine }}
+  let(:added_groups) { [:api_part_boot, :shared_boot, :api2_boot] }
 
   describe "#initialize" do
     it 'creates a singleton object' do
@@ -13,12 +13,12 @@ RSpec.describe Bootinq do
     end
 
     it 'takes default flags from bootinq.yml' do
-      expect(Bootinq.flags).to eq(%w(s a))
+      expect(Bootinq.flags).to eq(%w(A s 2))
     end
 
     it 'registers all components from bootinq.yml' do
-      expect(Bootinq.components.size).to eq(2)
-      expect(Bootinq.components).to include(:shared, :api)
+      expect(Bootinq.components.size).to eq(3)
+      expect(Bootinq.components).to include(:api_part, :shared, :api2)
     end
   end
 
@@ -29,14 +29,23 @@ RSpec.describe Bootinq do
     end
 
     it 'requires given components' do
+      expect( defined? ApiPart ).to be_truthy
+      expect( defined? FrontendPart ).to be_falsey
       expect( defined? Shared ).to be_truthy
-      expect( defined? Api ).to be_truthy
+      expect( defined? Api ).to be_falsey
+      expect( defined? Api2 ).to be_truthy
     end
   end
 
   describe ".new" do
     it 'should be frozen' do
       expect(Bootinq.instance).to be_frozen
+    end
+  end
+
+  describe '#is_dependency?' do
+    it 'correctly detects dependency of enabled component' do
+      expect(Bootinq.instance.is_dependency?(:api_part)).to be_truthy
     end
   end
 
@@ -48,13 +57,15 @@ RSpec.describe Bootinq do
 
   describe "#enabled?" do
     it 'takes symbols' do
+      expect(Bootinq.enabled?(:api_part)).to be_truthy
+      expect(Bootinq.enabled?(:frontend_part)).to be_falsey
       expect(Bootinq.enabled?(:shared)).to be_truthy
       expect(Bootinq.enabled?(:frontend)).to be_falsey
     end
 
     it 'takes strings' do
-      expect(Bootinq.enabled?('api')).to be_truthy
-      expect(Bootinq.enabled?('frontend')).to be_falsey
+      expect(Bootinq.enabled?('api')).to be_falsey
+      expect(Bootinq.enabled?('api2')).to be_truthy
     end
   end
 
@@ -64,13 +75,13 @@ RSpec.describe Bootinq do
     end
 
     it 'takes strings' do
-      expect(Bootinq.component('api')).to be_mountable & have_attributes(api_attrs)
+      expect(Bootinq.component('api2')).to be_mountable & have_attributes(api_attrs)
     end
   end
 
   describe "#each_mountable" do
     it 'enums only mountable components' do
-      expect(Bootinq.each_mountable.to_a).to contain_exactly Bootinq.component(:api)
+      expect(Bootinq.each_mountable.to_a).to contain_exactly Bootinq.component(:api2)
     end
   end
 
@@ -78,21 +89,21 @@ RSpec.describe Bootinq do
     context '(name)' do
       it 'yields a block if a component is enabled' do
         expect {|b| Bootinq.on(:shared, &b) }.to yield_with_no_args
-        expect {|b| Bootinq.on(:engine, &b) }.not_to yield_control
+        expect {|b| Bootinq.on(:frontend, &b) }.not_to yield_control
       end
     end
 
     context '(any: [*names])' do
       it 'yields a block if any component is enabled' do
-        expect {|b| Bootinq.on(any: [:engine, 'api'], &b) }.to yield_with_no_args
-        expect {|b| Bootinq.on(any: [:engine], &b) }.not_to yield_control
+        expect {|b| Bootinq.on(any: [:frontend, 'api2'], &b) }.to yield_with_no_args
+        expect {|b| Bootinq.on(any: [:frontend], &b) }.not_to yield_control
       end
     end
 
     context '(all: [*names])' do
       it 'yields a block if every component is enabled' do
-        expect {|b| Bootinq.on(all: [:shared, 'api'], &b) }.to yield_with_no_args
-        expect {|b| Bootinq.on(all: [:shared, :engine], &b) }.not_to yield_control
+        expect {|b| Bootinq.on(all: [:shared, 'api2'], &b) }.to yield_with_no_args
+        expect {|b| Bootinq.on(all: [:shared, :frontend], &b) }.not_to yield_control
       end
     end
 
@@ -101,7 +112,7 @@ RSpec.describe Bootinq do
     end
 
     context 'wrong arguments' do
-      it { expect {|b| Bootinq.on(any: [:shared], all: ['api'], &b) }.to raise_error(ArgumentError) }
+      it { expect {|b| Bootinq.on(any: [:shared], all: ['api2'], &b) }.to raise_error(ArgumentError) }
     end
   end
 

@@ -1,7 +1,7 @@
 require "rails/engine"
 
-module Api
+module Api2
   class Engine < ::Rails::Engine
-    isolate_namespace Api
+    isolate_namespace Api2
   end
 end

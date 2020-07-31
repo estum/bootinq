@@ -37,7 +37,7 @@ require "bootinq/switch"
 # == Example <tt>config/bootinq.yml</tt>:
 #
 #     env_key: BOOTINQ
-#     default: "-f"
+#     default: a
 #
 #     parts:
 #       s: :shared
@@ -45,6 +45,11 @@ require "bootinq/switch"
 #     mount:
 #       a: :api
 #       f: :engine
+#
+#     deps:
+#       shared:
+#         in: af
+#
 class Bootinq
   include Singleton
 
@@ -52,8 +57,21 @@ class Bootinq
     "env_key" => 'BOOTINQ',
     "default" => '',
     "parts"   => {},
-    "mount"   => {}
+    "mount"   => {},
+    "deps"    => {}
   }.freeze
+
+  FilterNegValue = -> (value, config) do
+    if value.start_with?(?-, ?^)
+      value = value.tr('\\-', '\\^')
+      flags = (config['parts'].keys + config['mount'].keys).join
+      [true, flags.delete(flags.delete(value))]
+    else
+      [false, value.dup]
+    end
+  end
+
+  private_constant :FilterNegValue
 
   class << self
     protected def delegated(sym) # :no-doc:
@@ -110,13 +128,16 @@ class Bootinq
     config = YAML.safe_load(File.read(config_path), [Symbol])
     config.merge!(DEFAULT) { |_, l, r| l.nil? ? r : l }
 
-    @_value     = ENV.fetch(config['env_key']) { config['default'] }
-    @_neg       = @_value.start_with?(?-, ?^)
+    @_orig_value = ENV.fetch(config['env_key']) { config['default'] }
+    @_neg, @_value = FilterNegValue[@_orig_value, config]
+
+    @_deps = config['deps']
+
     @flags      = []
     @components = []
 
-    config['parts'].each { |flag, name| enable_component(name, flag: flag) }
-    config['mount'].each { |flag, name| enable_component(name, flag: flag, as: Mountable) }
+    config['parts'].each { |flag, name| enable_component(name, flag: flag.to_s) }
+    config['mount'].each { |flag, name| enable_component(name, flag: flag.to_s, as: Mountable) }
   end
 
   delegated def ready? # :no-doc:
@@ -142,7 +163,7 @@ class Bootinq
   #   Bootinq.enable_component(name, flag: [, as: Component])
   #
   delegated def enable_component(name, flag:, as: Component)
-    if @_neg ^ @_value.include?(flag)
+    if is_dependency?(name) || @_value.include?(flag)
       @flags      << flag
       @components << as.new(name)
     end
@@ -257,7 +278,7 @@ class Bootinq
   end
 
   # :call-seq:
-  #   Bottinq.switch(*parts) { block } -> nil
+  #   Bootinq.switch(*parts) { block } -> nil
   #
   # Collector method.
   #
@@ -272,10 +293,18 @@ class Bootinq
     nil
   end
 
+  # :call-seq:
+  #   is_dependency?(part_name) -> true or false
+  #
+  # Checks if the named component is a dependency of the enabled one.
+  def is_dependency?(name)
+    @_deps.key?(name) && @_value.count(@_deps[name]['in'].to_s) > 0
+  end
+
   # Freezes every instance variables and the instance itself.
   def freeze
     @_value.freeze
-    @_neg.freeze
+    @_neg
     @flags.freeze
     @components.freeze
     super

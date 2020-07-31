@@ -1,8 +1,18 @@
-default: "-f"
+default: "s2"
 
 parts:
+  A: :api_part
+  F: :frontend_part
   s: :shared
 
 mount:
   a: :api
-  f: :engine
+  2: :api2
+  f: :frontend
+
+deps:
+  :api_part:
+    in: a2
+
+  :frontend_part:
+    in: f

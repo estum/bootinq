@@ -9,11 +9,11 @@ require "action_view/railtie"
 require "bootinq"
 
 Bootinq.require do
-  on :shared do
+  on :api_part do
     require "action_mailer/railtie"
   end
 
-  on :frontend do
+  on :frontend_part do
     require "sprockets/railtie"
   end
 end

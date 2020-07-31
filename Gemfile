@@ -32,6 +32,14 @@ group :shared_boot do
   gem 'shared', path: 'spec/dummy/engines/shared'
 end
 
+group :api_part_boot do
+  gem 'api_part', path: 'spec/dummy/engines/api_part'
+end
+
 group :api_boot do
   gem 'api', path: 'spec/dummy/engines/api'
+end
+
+group :api2_boot do
+  gem 'api2', path: 'spec/dummy/engines/api2'
 end

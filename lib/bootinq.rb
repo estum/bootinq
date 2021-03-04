@@ -73,15 +73,6 @@ class Bootinq
 
   private_constant :FilterNegValue
 
-  class << self
-    protected def delegated(sym) # :no-doc:
-      location = caller_locations(1, 1).first
-      file, line = location.path, location.lineno
-      definiton = %(def self.#{sym}(*args, &block); instance.#{sym}(*args, &block); end)
-      class_eval definiton, file, line
-    end
-  end
-
   # :call-seq:
   #   Bootinq.require(*groups, verbose: false, &block)
   #
@@ -120,9 +111,6 @@ class Bootinq
   attr_reader :flags
   attr_reader :components
 
-  delegated :flags
-  delegated :components
-
   def initialize # :no-doc:
     config_path = ENV.fetch('BOOTINQ_PATH')
     config = YAML.safe_load(File.read(config_path), [Symbol])
@@ -140,7 +128,7 @@ class Bootinq
     config['mount'].each { |flag, name| enable_component(name, flag: flag.to_s, as: Mountable) }
   end
 
-  delegated def ready? # :no-doc:
+  def ready? # :no-doc:
     !!@ready
   end
 
@@ -149,7 +137,7 @@ class Bootinq
   #
   # At the first call marks Bootinq as ready and returns the instance,
   # otherwise returns nil.
-  delegated def ready!
+  def ready!
     return if ready?
     @ready = true
     if defined?(@_on_ready)
@@ -162,7 +150,7 @@ class Bootinq
   # :call-seq:
   #   Bootinq.enable_component(name, flag: [, as: Component])
   #
-  delegated def enable_component(name, flag:, as: Component)
+  def enable_component(name, flag:, as: Component)
     if is_dependency?(name) || @_value.include?(flag)
       @flags      << flag
       @components << as.new(name)
@@ -174,7 +162,7 @@ class Bootinq
   #
   # Checks if a component with the given name (i.e. the same gem group)
   # is enabled
-  delegated def enabled?(name)
+  def enabled?(name)
     components.include?(name)
   end
 
@@ -183,12 +171,11 @@ class Bootinq
   #   Bootinq[name] -> Bootinq::Component
   #
   # Returns a <tt>Bootinq::Component</tt> object by its name
-  delegated def component(name)
+  def component(name)
     components[components.index(name)]
   end
 
   alias :[] :component
-  delegated :[]
 
   # :call-seq:
   #   Bootinq.each_mountable { |part| block } -> Array
@@ -198,7 +185,7 @@ class Bootinq
   # passing that part as a parameter. Returns the array of all mountable components.
   #
   # If no block is given, an Enumerator is returned.
-  delegated def each_mountable(&block) # :yields: part
+  def each_mountable(&block) # :yields: part
     components.select(&:mountable?).each(&block)
   end
 
@@ -208,7 +195,7 @@ class Bootinq
   # Merges enabled Bootinq's groups with the given groups and, if loaded with Rails,
   # passes them to <tt>Rails.groups</tt> method, otherwise just returns the merged list
   # to use with <tt>Bundler.require</tt>.
-  delegated def groups(*groups)
+  def groups(*groups)
     groups.unshift(*components.map(&:group))
     if defined?(Rails)
       Rails.groups(*groups)
@@ -240,7 +227,7 @@ class Bootinq
   #   Bootinq.on all: %i(frontend backend) do
   #     # do something when frontend and backend are enabled
   #   end
-  delegated def on(name = nil, any: nil, all: nil) # :yields:
+  def on(name = nil, any: nil, all: nil) # :yields:
     if name.nil? && any.nil? && all.nil?
       raise ArgumentError, "wrong arguments (given 0, expected 1)"
     elsif (any && all) || (name && (any || all))
@@ -260,7 +247,7 @@ class Bootinq
   #
   # Takes a list of component names and yields a given block (optionally)
   # if all of them are enabled. Returns boolean matching status.
-  delegated def on_all(*parts) # :yields:
+  def on_all(*parts) # :yields:
     is_matched = parts.all? { |p| enabled?(p) }
     yield if is_matched && block_given?
     is_matched
@@ -271,7 +258,7 @@ class Bootinq
   #
   # Takes a list of component names and yields a given block  (optionally)
   # if any of them are enabled. Returns boolean matching status.
-  delegated def on_any(*parts) # :yields:
+  def on_any(*parts) # :yields:
     is_matched = parts.any? { |p| enabled?(p) }
     yield if is_matched && block_given?
     is_matched
@@ -288,7 +275,7 @@ class Bootinq
   #     part.frontend { … }
   #     part.backend { … }
   #   end
-  delegated def switch # :yields: Bootinq::Switch.new
+  def switch # :yields: Bootinq::Switch.new
     yield(Switch.new)
     nil
   end
@@ -309,4 +296,26 @@ class Bootinq
     @components.freeze
     super
   end
+
+  delegate_template = <<~RUBY
+    def self.%1$s(*args, &block)
+      instance.%1$s(*args, &block)
+    end
+  RUBY
+
+  %I(flags
+     components
+     ready?
+     ready!
+     enable_component
+     enabled?
+     component
+     []
+     each_mountable
+     groups
+     on
+     on_all
+     on_any
+     switch
+  ).each { |sym| class_eval(delegate_template  % sym, *instance_method(sym).source_location) }
 end

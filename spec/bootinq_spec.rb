@@ -3,6 +3,29 @@ RSpec.describe Bootinq do
     expect(Bootinq::VERSION).not_to be nil
   end
 
+  describe ".deserialized_config" do
+    let(:required_config) {
+      {
+        'default' => "s2",
+        'parts' => { "A" => :api_part, "F" => :frontend_part, "s" => :shared },
+        'mount' => { "a" => :api, 2 => :api2, "f" => :frontend },
+        'deps'  => { :api_part => { "in" => "a2" }, :frontend_part => { "in" => "f" } }
+      }
+    }
+
+    it 'correctly loads the required config' do
+      expect(Bootinq.deserialized_config).to eq(required_config)
+    end
+
+    let(:given_config) {
+      { 'env_key' => 'BOOTINQ', 'default' => "-f", 'parts' => nil, 'mount' => nil }
+    }
+
+    it 'correctly loads the given config' do
+      expect(Bootinq.deserialized_config(path: File.expand_path("../lib/bootinq.yml", __dir__))).to eq(given_config)
+    end
+  end
+
   let(:shared_attrs) {{ name: "shared", group: :shared_boot }}
   let(:api_attrs)    {{ name: "api2",   group: :api2_boot,  engine: Api2::Engine }}
   let(:added_groups) { [:api_part_boot, :shared_boot, :api2_boot] }

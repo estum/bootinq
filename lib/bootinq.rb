@@ -108,12 +108,17 @@ class Bootinq
     instance.ready!
   end
 
+  # Reads config from the given or default path, deserializes it and returns as a hash.
+  def self.deserialized_config(path: nil)
+    bootinq_yaml = File.read(path || ENV.fetch('BOOTINQ_PATH'))
+    YAML.safe_load(bootinq_yaml, [Symbol])
+  end
+
   attr_reader :flags
   attr_reader :components
 
   def initialize # :no-doc:
-    config_path = ENV.fetch('BOOTINQ_PATH')
-    config = YAML.safe_load(File.read(config_path), [Symbol])
+    config = self.class.deserialized_config
     config.merge!(DEFAULT) { |_, l, r| l.nil? ? r : l }
 
     @_orig_value = ENV.fetch(config['env_key']) { config['default'] }

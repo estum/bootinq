@@ -148,7 +148,7 @@ require 'bootinq'
 
 # Bundler.require :default, ENV['RACK_ENV']
 Bootinq.require :default, ENV['RACK_ENV'], verbose: true
-
+```
 
 ## Development
 

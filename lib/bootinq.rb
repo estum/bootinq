@@ -61,6 +61,8 @@ class Bootinq
     "deps"    => {}
   }.freeze
 
+  ALL = %i[* all].freeze
+
   FilterNegValue = -> (value, config) do
     if value.start_with?(?-, ?^)
       value = value.tr('\\-', '\\^')
@@ -168,7 +170,7 @@ class Bootinq
   # Checks if a component with the given name (i.e. the same gem group)
   # is enabled
   def enabled?(name)
-    components.include?(name)
+    ALL.include?(name) || components.include?(name)
   end
 
   # :call-seq:
@@ -233,6 +235,11 @@ class Bootinq
   #     # do something when frontend and backend are enabled
   #   end
   def on(name = nil, any: nil, all: nil) # :yields:
+    if ALL.include?(name)
+      yield
+      return true
+    end
+
     if name.nil? && any.nil? && all.nil?
       raise ArgumentError, "wrong arguments (given 0, expected 1)"
     elsif (any && all) || (name && (any || all))
@@ -253,7 +260,7 @@ class Bootinq
   # Takes a list of component names and yields a given block (optionally)
   # if all of them are enabled. Returns boolean matching status.
   def on_all(*parts) # :yields:
-    is_matched = parts.all? { |p| enabled?(p) }
+    is_matched = parts.all? { |part| enabled?(part) }
     yield if is_matched && block_given?
     is_matched
   end
@@ -264,7 +271,7 @@ class Bootinq
   # Takes a list of component names and yields a given block  (optionally)
   # if any of them are enabled. Returns boolean matching status.
   def on_any(*parts) # :yields:
-    is_matched = parts.any? { |p| enabled?(p) }
+    is_matched = parts.any? { |part| enabled?(part) }
     yield if is_matched && block_given?
     is_matched
   end
@@ -302,25 +309,22 @@ class Bootinq
     super
   end
 
-  delegate_template = <<~RUBY
-    def self.%1$s(*args, &block)
-      instance.%1$s(*args, &block)
-    end
-  RUBY
+  extend SingleForwardable
 
-  %I(flags
-     components
-     ready?
-     ready!
-     enable_component
-     enabled?
-     component
-     []
-     each_mountable
-     groups
-     on
-     on_all
-     on_any
-     switch
-  ).each { |sym| class_eval(delegate_template  % sym, *instance_method(sym).source_location) }
+  delegate %I[
+    component
+    components
+    each_mountable
+    enabled?
+    enable_component
+    flags
+    groups
+    on
+    on_all
+    on_any
+    ready!
+    ready?
+    switch
+    []
+  ] => :instance
 end

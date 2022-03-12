@@ -79,6 +79,11 @@ RSpec.describe Bootinq do
   end
 
   describe "#enabled?" do
+    it 'takes :* and :all' do
+      expect(Bootinq.enabled?(:*)).to be_truthy
+      expect(Bootinq.enabled?(:all)).to be_truthy
+    end
+
     it 'takes symbols' do
       expect(Bootinq.enabled?(:api_part)).to be_truthy
       expect(Bootinq.enabled?(:frontend_part)).to be_falsey
@@ -127,6 +132,18 @@ RSpec.describe Bootinq do
       it 'yields a block if every component is enabled' do
         expect {|b| Bootinq.on(all: [:shared, 'api2'], &b) }.to yield_with_no_args
         expect {|b| Bootinq.on(all: [:shared, :frontend], &b) }.not_to yield_control
+      end
+    end
+
+    context '(:*)' do
+      it 'always yield a block' do
+        expect { |b| Bootinq.on(:*, &b) }.to yield_with_no_args
+      end
+    end
+
+    context '(:all)' do
+      it 'always yield a block' do
+        expect { |b| Bootinq.on(:all, &b) }.to yield_with_no_args
       end
     end
 

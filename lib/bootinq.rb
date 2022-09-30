@@ -113,7 +113,17 @@ class Bootinq
   # Reads config from the given or default path, deserializes it and returns as a hash.
   def self.deserialized_config(path: nil)
     bootinq_yaml = File.read(path || ENV.fetch('BOOTINQ_PATH'))
-    YAML.safe_load(bootinq_yaml, [Symbol])
+    psych_safe_load(bootinq_yaml, [Symbol])
+  end
+
+  if RUBY_VERSION >= '3.1.0'
+    def self.psych_safe_load(path, permitted_classes)
+      YAML.safe_load(path, permitted_classes: permitted_classes)
+    end
+  else
+    def self.psych_safe_load(*args)
+      YAML.safe_load(*args)
+    end
   end
 
   attr_reader :flags

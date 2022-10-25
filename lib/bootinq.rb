@@ -6,25 +6,21 @@ require "forwardable"
 require "bootinq/component"
 require "bootinq/switch"
 
-# = Bootinq
+# # Bootinq
 #
-# == Installation
+# ## Installation
 #
-# === Ruby on Rails
+# ### Ruby on Rails
 #
-# 1. Insert <tt>require "bootinq"</tt> in the top of <tt>config/application.rb</tt>
+#   1. insert `require "bootinq"` on top of `config/application.rb`;
+#   2. find and replace `Bundler.require(*Rails.groups)` with `Bootinq.require`
 #
-# 2. Find <tt>Bundler.require(*Rails.groups)</tt> line below and replace it
-#    with the <tt>Bootinq.require</tt>.
+# ### Other frameworks
 #
-# === Other
+#   1. locate `Bundler.require(…)` in your app and insert `require "bootinq"` above it;
+#   2. replace previosly located `Bundler.require(…)` line with the `Bootinq.require(…)`.
 #
-# 1. Locate <tt>Bundler.require(...)</tt> in your app and insert <tt>require "bootinq"</tt> above.
-#
-# 2. Replace located <tt>Bundler.require(...)</tt> line with the <tt>Bootinq.require(...)</tt>.
-#
-# For example, if you are using Grape:
-#
+# @example Grape
 #     # config/application.rb
 #
 #     require 'boot'
@@ -32,10 +28,8 @@ require "bootinq/switch"
 #
 #     # Bundler.require :default, ENV['RACK_ENV']
 #     Bootinq.require :default, ENV['RACK_ENV'], verbose: true
-#     ...
 #
-# == Example <tt>config/bootinq.yml</tt>:
-#
+# @example config/bootinq.yml
 #     env_key: BOOTINQ
 #     default: a
 #
@@ -49,7 +43,6 @@ require "bootinq/switch"
 #     deps:
 #       shared:
 #         in: af
-#
 class Bootinq
   include Singleton
 
@@ -75,47 +68,72 @@ class Bootinq
 
   private_constant :FilterNegValue
 
-  # :call-seq:
-  #   Bootinq.require(*groups, verbose: false, &block)
-  #
-  # Invokes the <tt>Bootinq.init</tt> method with the given verbose key argument & block,
-  # and, finally, makes Bundler to require the given groups.
-  def self.require(*groups, verbose: false, &block) # :yields: Bootinq.instance
-    init(verbose: verbose, &block)
+  # Invokes the {init} method with the given options and block,
+  # then calls {Bundler.require} with the enabled groups.
+  # @see init
+  # @see Bundler.require
+  # @param groups [Array<Symbol>]
+  # @param options [Hash]
+  #   initialization options
+  # @option options [Boolean] verbose
+  #   track inquired components
+  # @option options [Proc] on_ready
+  #   optional ready callback proc
+  # @return [void]
+  def self.require(*groups, **options, &on_ready)
+    init(**options, &on_ready)
     Bundler.require(*instance.groups(*groups))
   end
 
-  # :call-seq:
-  #   Bootinq.setup(*groups, verbose: false, &block)
-  #
-  # Invokes the <tt>Bootinq.init</tt> method with the given verbose key argument & block,
-  # and, finally, makes Bundler to setup the given groups.
-  def self.setup(*groups, verbose: false, &block) # :yields: Bootinq.instance
-    init(verbose: verbose, &block)
+  # Invokes the {init} method with the given options and block,
+  # then calls {Bundler.require} with the enabled groups.
+  # @see init
+  # @see Bundler.setup
+  # @param groups [Array<Symbol>]
+  # @param options [Hash]
+  #   initialization options
+  # @option options [Boolean] verbose
+  #   track inquired components
+  # @option options [Proc] on_ready
+  #   optional ready callback proc
+  # @yield [instance]
+  # @return [void]
+  def self.setup(*groups, **options, &on_ready) # :yields: Bootinq.instance
+    init(**options, &on_ready)
     Bundler.setup(*instance.groups(*groups))
   end
 
-  # :call-seq:
-  #   Bootinq.init(verbose: false, &block) -> true or false
-  #
-  # Initializes itself. Sets the BOOTINQ_PATH enviroment variable if it is missing.
-  # To track inquired components use <tt>verbose: true</tt> key argument.
-  # Optionally yields block within the own instance's binding.
-  def self.init(verbose: false, &block) # :yields: Bootinq.instance
+  # Sets `BOOTINQ_PATH` enviroment variable if it is missing & initializes itself
+  # @overload init(verbose: false, on_ready:)
+  # @overload init(verbose: false, &on_ready)
+  # @param verbose [Boolean]
+  #   track inquired components
+  # @param on_ready [Proc]
+  #   optional ready callback proc
+  # @return [instance]
+  def self.init(verbose: false, on_ready: nil, &block)
     ENV['BOOTINQ_PATH'] ||= File.expand_path('../bootinq.yml', caller_locations(2, 1)[0].path)
 
     instance
-    instance.instance_variable_set(:@_on_ready, block.to_proc) if block_given?
+    on_ready = block.to_proc if on_ready.nil? && block_given?
+    instance.instance_variable_set(:@_on_ready, on_ready.to_proc) if on_ready
+
     puts "Bootinq: loading components #{instance.components.join(', ')}" if verbose
+
     instance.ready!
   end
 
-  # Reads config from the given or default path, deserializes it and returns as a hash.
+  # Reads config
+  # @param path [String]
+  #   path to yaml config (default: ENV['BOOTINQ_PATH'])
+  # @return [Hash]
+  #   deserializes yaml config
   def self.deserialized_config(path: nil)
     bootinq_yaml = File.read(path || ENV.fetch('BOOTINQ_PATH'))
     psych_safe_load(bootinq_yaml, [Symbol])
   end
 
+  # @api private
   if RUBY_VERSION >= '3.1.0'
     def self.psych_safe_load(path, permitted_classes)
       YAML.safe_load(path, permitted_classes: permitted_classes)
@@ -126,10 +144,20 @@ class Bootinq
     end
   end
 
+  private_class_method :psych_safe_load
+
+  # @!attribute flags [r]
+  #   @return [Array<String>]
+
   attr_reader :flags
+
+  # @!attribute components [r]
+  #   @return [Array<String>]
+
   attr_reader :components
 
-  def initialize # :no-doc:
+  # @return [self]
+  def initialize
     config = self.class.deserialized_config
     config.merge!(DEFAULT) { |_, l, r| l.nil? ? r : l }
 
@@ -145,172 +173,235 @@ class Bootinq
     config['mount'].each { |flag, name| enable_component(name, flag: flag.to_s, as: Mountable) }
   end
 
-  def ready? # :no-doc:
+  # @return [Boolean]
+  def ready?
     !!@ready
   end
 
-  # :call-seq:
-  #   Bootinq.ready! -> nil or self
-  #
-  # At the first call marks Bootinq as ready and returns the instance,
-  # otherwise returns nil.
+  # Once-only set {Bootinq} to ready state firing the `@_on_ready` callback.
+  # @return [self] on the first call
+  # @return [void] after
   def ready!
     return if ready?
     @ready = true
     if defined?(@_on_ready)
-      instance_exec(&@_on_ready)
+      Bootinq.class_exec(&@_on_ready)
       remove_instance_variable :@_on_ready
     end
     freeze
   end
 
-  # :call-seq:
-  #   Bootinq.enable_component(name, flag: [, as: Component])
-  #
+  # Enables the given component if it is required by flag or
+  # when another enabled component depends it.
+  # @param name [String]
+  #   of the component
+  # @param flag [String]
+  #   the component's assigned char flag
+  # @param as [Class]
+  #   the component's constructor class
+  # @yield [name, is_enabled]
+  # @return [void]
   def enable_component(name, flag:, as: Component)
     if is_dependency?(name) || @_value.include?(flag)
       @flags      << flag
       @components << as.new(name)
-    end
-  end
-
-  # :call-seq:
-  #   Bootinq.enabled?(name) -> true or false
-  #
-  # Checks if a component with the given name (i.e. the same gem group)
-  # is enabled
-  def enabled?(name)
-    ALL.include?(name) || components.include?(name)
-  end
-
-  # :call-seq:
-  #   Bootinq.component(name) -> Bootinq::Component
-  #   Bootinq[name] -> Bootinq::Component
-  #
-  # Returns a <tt>Bootinq::Component</tt> object by its name
-  def component(name)
-    components[components.index(name)]
-  end
-
-  alias :[] :component
-
-  # :call-seq:
-  #   Bootinq.each_mountable { |part| block } -> Array
-  #   Bootinq.each_mountable -> Enumerator
-  #
-  # Calls the given block once for each enabled mountable component
-  # passing that part as a parameter. Returns the array of all mountable components.
-  #
-  # If no block is given, an Enumerator is returned.
-  def each_mountable(&block) # :yields: part
-    components.select(&:mountable?).each(&block)
-  end
-
-  # :call-seq:
-  #   Bootinq.groups(*groups)
-  #
-  # Merges enabled Bootinq's groups with the given groups and, if loaded with Rails,
-  # passes them to <tt>Rails.groups</tt> method, otherwise just returns the merged list
-  # to use with <tt>Bundler.require</tt>.
-  def groups(*groups)
-    groups.unshift(*components.map(&:group))
-    if defined?(Rails)
-      Rails.groups(*groups)
+      yield(name, true) if block_given?
     else
-      groups
+      yield(name, false) if block_given?
+    end
+
+    nil
+  end
+
+  # Checks if a component with the given name (i.e. the same gem group)  is enabled
+  # @return [Boolean]
+  def enabled?(name)
+    ALL.include?(name) || @components.include?(name)
+  end
+
+  # @param name [String, Symbol]
+  # @return [Bootinq::Component]
+  def component(name)
+    @components[@components.index(name)]
+  end
+
+  alias_method :[], :component
+
+  # Checks if a component with the given name (i.e. the same gem group)  is disabled
+  # @return [Boolean]
+  def disabled?(name)
+    !@components.include?(name)
+  end
+
+  # Enumerates enabled mountable components
+  # @overload each_mountable()
+  # @overload each_mountable(&block)
+  #   @yield [component]
+  # @return [Enumerator]
+  def each_mountable
+    return enum_for(:each_mountable) unless block_given?
+
+    @components.each do |component|
+      yield(component) if component.mountable?
     end
   end
 
-  # :call-seq:
-  #   Bootinq.on(name) { block } -> true or false
-  #   Bootinq.on(any: [names]) { block } -> true or false
-  #   Bootinq.on(all: [names]) { block } -> true or false
+  # Merges groups of enabled components with the given ones.
+  # When loaded with Rails, it passes them to {Rails.groups} method,
+  # otherwise just returns the merged list to use it with {Bundler.require}.
+  # @param groups [Array<String, Symbol>]
+  # @return [Array<String, Symbol>] merged groups
+  def groups(*groups)
+    @components.each do |component|
+      next if groups.include?(component.group)
+      groups.unshift(component.group)
+    end
+
+    defined?(Rails) ? Rails.groups(*groups) : groups
+  end
+
+  # @overload on(name)
+  #   @yield [void] (if component is enabled)
+  #   @param name [Symbol] single component's name
   #
-  # Takes a component's name or single-key options hash as an argument and
-  # yields a given block if the target components are enabled.
+  # @overload on(any:)
+  #   @see on_any
+  #   @yield [void] (if _any_ matching component is enabled)
+  #   @param any [Array<Symbol>] list of components' names
   #
-  # See examples for a usage.
+  # @overload on(all:)
+  #   @see on_all
+  #   @yield [void] (if _all_ matching components are enabled)
+  #   @param all [Array<Symbol>] list of components' names
   #
-  # ==== Example:
+  # @return [Boolean] matching status
   #
-  #   Bootinq.on :frontend do
-  #     # make frontend thing...
-  #   end
-  #
-  #   Bootinq.on any: %i(frontend backend) do
-  #     # do something when frontend or backend is enabled
-  #   end
-  #
-  #   Bootinq.on all: %i(frontend backend) do
-  #     # do something when frontend and backend are enabled
-  #   end
-  def on(name = nil, any: nil, all: nil) # :yields:
-    if ALL.include?(name)
+  # @example single
+  #   Bootinq.on(:frontend) { puts 'frontend' }
+  # @example any
+  #   Bootinq.on(any: %i[frontend backend]) { puts 'frontend or backend' }
+  # @example all
+  #   Bootinq.on(all: %i[frontend backend]) { puts 'both' }
+  def on(name = nil, any: nil, all: nil)
+    if name && ALL.include?(name)
       yield
       return true
-    end
-
-    if name.nil? && any.nil? && all.nil?
-      raise ArgumentError, "wrong arguments (given 0, expected 1)"
-    elsif (any && all) || (name && (any || all))
-      raise ArgumentError, "expected single argument or one of keywords: `all' or `any'"
     end
 
     is_matched =
       name ? enabled?(name) :
       any  ? on_any(*any) :
       all  ? on_all(*all) : false
+
     yield if is_matched
+
     is_matched
   end
 
-  # :call-seq:
-  #   Bootinq.on_all(*names) { block } -> true or false
-  #
-  # Takes a list of component names and yields a given block (optionally)
-  # if all of them are enabled. Returns boolean matching status.
+  # @yield [void]
+  #   if _all_ matching components are enabled
+  # @param parts [Array<String, Symbol>]
+  #   list of components' names
+  # @return [Boolean]
+  #   matching status
   def on_all(*parts) # :yields:
-    is_matched = parts.all? { |part| enabled?(part) }
+    is_matched = parts.reduce(true) { |m, part| m && enabled?(part) }
     yield if is_matched && block_given?
     is_matched
   end
 
-  # :call-seq:
-  #   Bootinq.on_all(*names) { block } -> true or false
-  #
-  # Takes a list of component names and yields a given block  (optionally)
-  # if any of them are enabled. Returns boolean matching status.
+  # @yield [void]
+  #   if _any_ matching component is enabled
+  # @param parts [Array<String, Symbol>]
+  #   list of components' names
+  # @return [Boolean]
+  #   matching status
   def on_any(*parts) # :yields:
-    is_matched = parts.any? { |part| enabled?(part) }
+    is_matched = parts.reduce(false) { |m, part| m || enabled?(part) }
     yield if is_matched && block_given?
     is_matched
   end
 
-  # :call-seq:
-  #   Bootinq.switch(*parts) { block } -> nil
+  # @overload not(name)
+  #   @yield [void] (if component is disabled)
+  #   @param name [Symbol] single component's name
   #
+  # @overload not(any:)
+  #   @see not_any
+  #   @yield [void] (if _any_ matching component is disabled)
+  #   @param any [Array<Symbol>] list of components' names
+  #
+  # @overload not(all:)
+  #   @see not_all
+  #   @yield [void] (if _all_ matching components are disabled)
+  #   @param all [Array<Symbol>] list of components' names
+  #
+  # @return [Boolean] matching status
+  #
+  # @example single
+  #   Bootinq.not(:frontend) { puts 'not frontend' }
+  # @example any
+  #   Bootinq.not(any: %i[frontend backend]) { puts 'neither frontend nor backend' }
+  # @example all
+  #   Bootinq.on(all: %i[frontend backend]) { puts 'both disabled' }
+  def not(name = nil, any: nil, all: nil)
+    is_matched =
+      name ? disabled?(name) :
+      any  ? not_any(*any) :
+      all  ? not_all(*all) : false
+
+    yield if is_matched
+
+    is_matched
+  end
+
+  # @yield [void]
+  #   if _all_ matching components are disabled
+  # @param parts [Array<String, Symbol>]
+  #   list of components' names
+  # @return [Boolean]
+  #   matching status
+  def not_all(*parts) # :yields:
+    is_matched = parts.reduce(true) { |m, part| m && disabled?(part) }
+    yield if is_matched && block_given?
+    is_matched
+  end
+
+  # @yield [void]
+  #   if _any_ matching component is disabled
+  # @param parts [Array<String, Symbol>]
+  #   list of components' names
+  # @return [Boolean]
+  #   matching status
+  def not_any(*parts) # :yields:
+    is_matched = parts.reduce(false) { |m, part| m || disabled?(part) }
+    yield if is_matched && block_given?
+    is_matched
+  end
+
   # Collector method.
-  #
-  # Example:
-  #
+  # @example
   #   Bootinq.switch do |part|
   #     part.frontend { … }
   #     part.backend { … }
   #   end
-  def switch # :yields: Bootinq::Switch.new
+  # @yield [switch]
+  # @see Bootinq::Switch
+  # @return [void]
+  def switch
     yield(Switch.new)
     nil
   end
 
-  # :call-seq:
-  #   is_dependency?(part_name) -> true or false
-  #
-  # Checks if the named component is a dependency of the enabled one.
+  # Checks if the named component is dependent by another enabled one.
+  # @param name [String, Symbol]
+  # @return [Boolean]
   def is_dependency?(name)
-    @_deps.key?(name) && @_value.count(@_deps[name]['in'].to_s) > 0
+    @_deps.key?(name.to_s) &&
+    @_value.count(@_deps.dig(name.to_s, 'in').to_s) > 0
   end
 
-  # Freezes every instance variables and the instance itself.
+  # @api private
   def freeze
     @_value.freeze
     @_neg
@@ -321,20 +412,22 @@ class Bootinq
 
   extend SingleForwardable
 
-  delegate %I[
-    component
-    components
-    each_mountable
-    enabled?
-    enable_component
-    flags
-    groups
-    on
-    on_all
-    on_any
-    ready!
-    ready?
-    switch
-    []
-  ] => :instance
+  def_delegator :instance, :component
+  def_delegator :instance, :components
+  def_delegator :instance, :each_mountable
+  def_delegator :instance, :enabled?
+  def_delegator :instance, :enable_component
+  def_delegator :instance, :disabled?
+  def_delegator :instance, :flags
+  def_delegator :instance, :groups
+  def_delegator :instance, :on
+  def_delegator :instance, :on_all
+  def_delegator :instance, :on_any
+  def_delegator :instance, :not
+  def_delegator :instance, :not_all
+  def_delegator :instance, :not_any
+  def_delegator :instance, :ready!
+  def_delegator :instance, :ready?
+  def_delegator :instance, :switch
+  def_delegator :instance, :[]
 end

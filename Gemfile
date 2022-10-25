@@ -26,6 +26,8 @@ end
 group :development do
   # You don't need these, but I use them
   gem "awesome_print"
+  gem "commonmarker", require: false
+  gem "yard"
 end
 
 group :shared_boot do

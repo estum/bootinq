@@ -9,7 +9,7 @@ RSpec.describe Bootinq do
         'default' => "s2",
         'parts' => { "A" => :api_part, "F" => :frontend_part, "s" => :shared },
         'mount' => { "a" => :api, 2 => :api2, "f" => :frontend },
-        'deps'  => { :api_part => { "in" => "a2" }, :frontend_part => { "in" => "f" } }
+        'deps'  => { 'api_part' => { "in" => "a2" }, 'frontend_part' => { "in" => "f" } }
       }
     }
 
@@ -36,7 +36,7 @@ RSpec.describe Bootinq do
     end
 
     it 'takes default flags from bootinq.yml' do
-      expect(Bootinq.flags).to eq(%w(A s 2))
+      expect(Bootinq.flags).to match_array(['2', 'A', 's'])
     end
 
     it 'registers all components from bootinq.yml' do
@@ -46,17 +46,21 @@ RSpec.describe Bootinq do
   end
 
   describe ".require" do
-    it 'requires given rails parts' do
-      expect( defined? ActionMailer ).to be_truthy
-      expect( defined? Sprockets ).to be_falsey
+    let(:on_ready_block) { spy('on_ready_block', call: true, yield: true) }
+
+    before do
+      Bootinq.instance_variable_get(:@singleton__mutex__).synchronize do
+        Bootinq.remove_instance_variable(:@singleton__instance__)
+      end
+      allow(on_ready_block).to receive(:to_proc) do
+        fn = on_ready_block
+        proc { fn.call }
+      end
+      Bootinq.require(on_ready: on_ready_block)
     end
 
-    it 'requires given components' do
-      expect( defined? ApiPart ).to be_truthy
-      expect( defined? FrontendPart ).to be_falsey
-      expect( defined? Shared ).to be_truthy
-      expect( defined? Api ).to be_falsey
-      expect( defined? Api2 ).to be_truthy
+    it 'yields s block when became ready' do
+      expect(on_ready_block).to have_received(:call).once
     end
   end
 
@@ -145,14 +149,6 @@ RSpec.describe Bootinq do
       it 'always yield a block' do
         expect { |b| Bootinq.on(:all, &b) }.to yield_with_no_args
       end
-    end
-
-    context 'no arguments' do
-      it { expect {|b| Bootinq.on(&b) }.to raise_error(ArgumentError, "wrong arguments (given 0, expected 1)") }
-    end
-
-    context 'wrong arguments' do
-      it { expect {|b| Bootinq.on(any: [:shared], all: ['api2'], &b) }.to raise_error(ArgumentError) }
     end
   end
 

@@ -11,8 +11,8 @@ mount:
   f: :frontend
 
 deps:
-  :api_part:
+  api_part:
     in: a2
 
-  :frontend_part:
+  frontend_part:
     in: f

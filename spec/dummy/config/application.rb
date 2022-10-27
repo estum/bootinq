@@ -7,13 +7,15 @@ require "action_view/railtie"
 # require "rails/test_unit/railtie"
 
 require "bootinq"
+require "bootinq/mixins"
 
 Bootinq.require do
-  on :api_part do
+  on_api_part do
+    require "action_mailer"
     require "action_mailer/railtie"
   end
 
-  on :frontend_part do
+  on_frontend_part do
     require "sprockets/railtie"
   end
 end

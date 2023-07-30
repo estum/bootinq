@@ -1,0 +1,1 @@
+FRONTEND_PART_CONSTANT = :undefined

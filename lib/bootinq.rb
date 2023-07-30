@@ -1,10 +1,12 @@
 # frozen_string_literal: true
 
+
 require "yaml"
 require "singleton"
 require "forwardable"
-require "bootinq/component"
-require "bootinq/switch"
+require "zeitwerk"
+loader = Zeitwerk::Loader.for_gem
+loader.setup
 
 # # Bootinq
 #

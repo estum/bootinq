@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class Bootinq
+  def self.inflector
+    @@inflector ||= Zeitwerk::Inflector.new
+  end
+
   class Component
     # @!attribute [r] intern
     #   @return [Symbol]
@@ -44,7 +48,7 @@ class Bootinq
 
     # @return [Symbol]
     def module_name
-      @id2name.camelcase.to_sym
+      Bootinq.inflector.camelize(@id2name, nil).to_sym
     end
 
     # @return [Module]
